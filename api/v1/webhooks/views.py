@@ -18,40 +18,17 @@ from django.http import JsonResponse
 from django.conf import settings
 from web.models import Subscriber
 
-GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyQkj-Eu6O9vFIVaLUWJtXLwhw_yhAuWWp9vUV3D7bRy1rPmey2KxPN_ETbOCZMWaXW/exec'
-API_TOKEN = '10283|zuHIJbEQ738v890ox6igIxz0rcjXxRl2tmNhuMC24c68c24a'
+GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtYXbNuoObFhvVJzcKdQhdjVgzPFuJwmNhfrkpZz-I7_iZ2knKCNiKcT_bTkcrECI/exec' 
+API_TOKEN = '10337|avjhUOcfqEAodgsXI0ZoxWC3DJMZ0Pnk1oDLcdWIbe6a7d3e'
 PHONE_NUMBER_ID = '646606975197281'
 
 BATCH_SIZE = 1000  
 
+CRED_PATH = "/etc/secrets/cred.json"  
 
-
-
-def find_value_in_sheet(request):
-    SEARCH_COLUMN = 2  # Column B
-    SEARCH_VALUE = '919745158442'  # The value you are looking for
-    
-    # Get the absolute path of the credential file (adjust to match your structure)
-    cred_path = "/etc/secrets/cred.json"  # Assuming 'cred.json' is at the root of your project
-
-    # 1. Authenticate using the service account (gspread)
-    gc = gspread.service_account(filename=cred_path)
-    
-    # 2. Open the spreadsheet and select the worksheet
-    sh = gc.open("Fusfu - CQO 2025 Lead management MAIN")
-    ws = sh.get_worksheet(0)  # Select the first worksheet
-
-    # 3. Attempt to find the value in the given column
-    cell = ws.find(SEARCH_VALUE, in_column=SEARCH_COLUMN)
-    response = {
-        'found': True,
-        'value': SEARCH_VALUE,
-        'row': cell.row,
-        'column': cell.col
-    }
-    return JsonResponse(response)
-
-
+gc = gspread.service_account(filename=CRED_PATH)
+sh = gc.open("Fusfu - CQO 2025 Lead management MAIN")
+data_main = sh.get_worksheet(0) 
 
 
 
@@ -70,6 +47,24 @@ def send_to_google_sheet(subscriber):
     except Exception as e:
         print(f"[Google Sheet Sync] Failed for {subscriber.subscriber_id}: {e}")
 
+
+def sheet_update_or_append(request,cid,leadstatus,whatsappstatus,source=None):
+    body = json.loads(request.body) 
+    cell = data_main.find(cid, in_column=2)
+    if cell != None :
+        data_main.update_cell(cell.row, 6, leadstatus)
+        data_main.update_cell(cell.row, 6, whatsappstatus)
+        if source != None :
+            data_main.update_cell(cell.row, 4, source)
+    else:
+        data_main.append_row( ['----',cid,body.get('first_name'),'',source,'',leadstatus,whatsappstatus])
+
+
+def newchatfunct(request,cid,):
+    body = json.loads(request.body) 
+    cell = data_main.find(cid, in_column=2)
+    if cell == None :
+        data_main.append_row( ['----',cid,body.get('first_name'),'','WhatsApp New','','New','NOT MESSAGED'])
 
 
 def generate_unique_code():
@@ -96,7 +91,8 @@ def generate_and_send_image(name, reg_id, phone, email, output_path=None):
     img.save(output_path)
     return output_path
 
-def update_subscriber_status(chat_id, status, lead_status):
+
+def thread_update_subscriber_status(chat_id, status, lead_status):
     try:
         subscriber = Subscriber.objects.get(chat_id=chat_id)
         subscriber.status = status
@@ -106,6 +102,10 @@ def update_subscriber_status(chat_id, status, lead_status):
         return True
     except Subscriber.DoesNotExist:
         return False
+
+def update_subscriber_status(chat_id, status, lead_status):
+        Thread(target=thread_update_subscriber_status, args=(chat_id,status, lead_status)).start()
+
 
 def extract_chat_id(request):
     try:
@@ -178,176 +178,71 @@ def sync_subscribers(request):
 
 @csrf_exempt
 @require_POST
-# def registration_completed(request):
-#     print("[STEP 1] Incoming request...")
 
-#     try:
-#         body = json.loads(request.body)
-#         print("[STEP 2] Request body parsed:", body)
+def regproxess(request):
+            body = json.loads(request.body)
+            print("[STEP 2] Request body parsed:", body)
 
-#         name = body.get('student-name')
-#         chat_id = body.get('chat_id')
-#         email = body.get('student-email')
-#         phone = body.get('student-mobile') or chat_id
+            name = body.get('student-name')
+            chat_id = body.get('chat_id')
+            email = body.get('student-email')
+            phone = body.get('student-mobile') or chat_id
 
-#         print(f"[STEP 3] Extracted chat_id: {chat_id}, email: {email}, phone: {phone}, name: {name}")
+            print(f"[STEP 3] Extracted chat_id: {chat_id}, email: {email}, phone: {phone}, name: {name}")
 
-#         if not chat_id:
-#             print("[ERROR] chat_id missing")
-#             return JsonResponse({'success': False, 'error': 'Invalid chat_id'}, status=400)
+            if not chat_id:
+                print("[ERROR] chat_id missing")
+                return JsonResponse({'success': False, 'error': 'Invalid chat_id'}, status=400)
 
-#         try:
-#             subscriber = Subscriber.objects.get(chat_id=chat_id)
-#             print(f"[STEP 4] Subscriber found: {subscriber}")
-#         except Subscriber.DoesNotExist:
-#             print("[ERROR] Subscriber not found")
-#             return JsonResponse({'success': False, 'error': 'Subscriber not found'}, status=404)
+            try:
+                subscriber = Subscriber.objects.get(chat_id=chat_id)
+                print(f"[STEP 4] Subscriber found: {subscriber}")
+            except Subscriber.DoesNotExist:
+                print("[ERROR] Subscriber not found")
+                return JsonResponse({'success': False, 'error': 'Subscriber not found'}, status=404)
 
-#         if not subscriber.unique_code:
-#             print("[STEP 5] Generating new unique_code...")
-#             subscriber.unique_code = generate_unique_code()
-#             subscriber.save()
-#             print(f"[STEP 6] Unique code saved: {subscriber.unique_code}")
+            if not subscriber.unique_code:
+                print("[STEP 5] Generating new unique_code...")
+                subscriber.unique_code = generate_unique_code()
+                subscriber.save()
+                print(f"[STEP 6] Unique code saved: {subscriber.unique_code}")
 
-#         updated = update_subscriber_status(chat_id, 'REGESTERED', 'registered')
-#         print(f"[STEP 7] Subscriber status update result: {updated}")
+            updated = update_subscriber_status(chat_id, 'REGESTERED', 'registered')
+            print(f"[STEP 7] Subscriber status update result: {updated}")
 
-#         if updated:
-#             send_to_google_sheet(subscriber)
-#             print("[STEP 8] Sent to Google Sheet")
+            if updated:
+                send_to_google_sheet(subscriber)
+                print("[STEP 8] Sent to Google Sheet")
 
-#             generate_and_send_image(
-#                 name=subscriber.first_name,
-#                 reg_id=subscriber.unique_code,
-#                 phone=phone,
-#                 email=email
-#             )
-#             print("[STEP 9] Image generated")
+               
+                webhook_url = "https://bot.wabis.in/webhook/whatsapp-workflow/136743.143544.173675.1746126129"
+                payload = {
+                    "studentNameWbh": name,
+                    "studentRegId": subscriber.unique_code,
+                    "studentEmailWbh": email,
+                    "studentPhoneWbh": phone,
+                    "chat_id": chat_id
+                }
 
-#             image_filename = f"output_{subscriber.unique_code}.jpg"
-#             image_path = os.path.join("assets/user", image_filename)
-#             print(f"[STEP 10] Image path: {image_path}")
+                print(f"[STEP 12] Sending payload to Wabis: {payload}")
+                try:
+                    response = requests.post(webhook_url, json=payload, timeout=5)
+                    print(f"[STEP 13] Wabis webhook response: {response.status_code}, {response.text}")
+                except Exception as e:
+                    print(f"[ERROR] Failed to send to Wabis webhook: {e}")
 
-#             if not os.path.exists(image_path):
-#                 print("[ERROR] Image file not found")
-#                 return JsonResponse({'success': False, 'error': 'Image file not found'}, status=404)
+                print("[STEP 14] All operations completed successfully.")
 
-#             encoded_filename = quote(image_filename)
-#             scheme = 'https' if request.is_secure() else 'http'
-#             domain = request.get_host()
-#             image_url = f"{scheme}://{domain}/assets/user/{encoded_filename}"
-#             print(f"[STEP 11] Image URL generated: {image_url}")
-#             webhook_url = "https://bot.wabis.in/webhook/whatsapp-workflow/136743.143544.173675.1746087689"
-#             payload = {
-#                 "studentNameWbh": name,
-#                 "studentRegId": subscriber.unique_code,
-#                 "studentEmailWbh": email,
-#                 "studentPhoneWbh": phone,
-#                 "IMAGE": image_url
-#             }
 
-#             print(f"[STEP 12] Sending payload to Wabis: {payload}")
-#             try:
-#                 response = requests.post(webhook_url, json=payload, timeout=5)
-#                 print(f"[STEP 13] Wabis webhook response: {response.status_code}, {response.text}")
-#             except Exception as e:
-#                 print(f"[ERROR] Failed to send to Wabis webhook: {e}")
-
-#             print("[STEP 14] All operations completed successfully.")
-#             return JsonResponse({'success': True})
-
-#         print("[ERROR] Failed to update subscriber status")
-#         return JsonResponse({'success': False, 'error': 'Failed to update status'}, status=400)
-
-#     except json.JSONDecodeError as e:
-#         print("[ERROR] JSON decode failed:", e)
-#         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
-
-#     except Exception as e:
-#         import traceback
-#         print("[ERROR] Unexpected error occurred:")
-#         traceback.print_exc()
-#         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 def registration_completed(request):
     print("[STEP 1] Incoming request...")
 
     try:
-        body = json.loads(request.body)
-        print("[STEP 2] Request body parsed:", body)
+        Thread(target=regproxess, args=(request)).start()
 
-        name = body.get('student-name')
-        chat_id = body.get('chat_id')
-        email = body.get('student-email')
-        phone = body.get('student-mobile') or chat_id
+        return JsonResponse({'success': True})
 
-        print(f"[STEP 3] Extracted chat_id: {chat_id}, email: {email}, phone: {phone}, name: {name}")
-
-        if not chat_id:
-            print("[ERROR] chat_id missing")
-            return JsonResponse({'success': False, 'error': 'Invalid chat_id'}, status=400)
-
-        try:
-            subscriber = Subscriber.objects.get(chat_id=chat_id)
-            print(f"[STEP 4] Subscriber found: {subscriber}")
-        except Subscriber.DoesNotExist:
-            print("[ERROR] Subscriber not found")
-            return JsonResponse({'success': False, 'error': 'Subscriber not found'}, status=404)
-
-        if not subscriber.unique_code:
-            print("[STEP 5] Generating new unique_code...")
-            subscriber.unique_code = generate_unique_code()
-            subscriber.save()
-            print(f"[STEP 6] Unique code saved: {subscriber.unique_code}")
-
-        updated = update_subscriber_status(chat_id, 'REGESTERED', 'registered')
-        print(f"[STEP 7] Subscriber status update result: {updated}")
-
-        if updated:
-            send_to_google_sheet(subscriber)
-            print("[STEP 8] Sent to Google Sheet")
-
-            # generate_and_send_image(
-            #     name=subscriber.first_name,
-            #     reg_id=subscriber.unique_code,
-            #     phone=phone,
-            #     email=email
-            # )
-            # print("[STEP 9] Image generated")
-
-            # image_filename = f"output_{subscriber.unique_code}.jpg"
-            # image_path = os.path.join("assets/user", image_filename)
-            # print(f"[STEP 10] Image path: {image_path}")
-
-            # if not os.path.exists(image_path):
-            #     print("[ERROR] Image file not found")
-            #     return JsonResponse({'success': False, 'error': 'Image file not found'}, status=404)
-
-            # encoded_filename = quote(image_filename)
-            # scheme = 'https' if request.is_secure() else 'http'
-            # domain = request.get_host()
-            # image_url = f"{scheme}://{domain}/assets/user/{encoded_filename}"
-            # print(f"[STEP 11] Image URL generated: {image_url}")
-            webhook_url = "https://bot.wabis.in/webhook/whatsapp-workflow/136743.143544.173675.1746087689"
-            payload = {
-                "studentNameWbh": name,
-                "studentRegId": subscriber.unique_code,
-                "studentEmailWbh": email,
-                "studentPhoneWbh": phone,
-            }
-
-            print(f"[STEP 12] Sending payload to Wabis: {payload}")
-            try:
-                response = requests.post(webhook_url, json=payload, timeout=5)
-                print(f"[STEP 13] Wabis webhook response: {response.status_code}, {response.text}")
-            except Exception as e:
-                print(f"[ERROR] Failed to send to Wabis webhook: {e}")
-
-            print("[STEP 14] All operations completed successfully.")
-            return JsonResponse({'success': True})
-
-        print("[ERROR] Failed to update subscriber status")
-        return JsonResponse({'success': False, 'error': 'Failed to update status'}, status=400)
-
+          
     except json.JSONDecodeError as e:
         print("[ERROR] JSON decode failed:", e)
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
@@ -361,52 +256,77 @@ def registration_completed(request):
 @csrf_exempt
 @require_POST
 def form_sent(request):
-    print('NEWWWWW ',request)
+    print('form sent ',request)
     chat_id = extract_chat_id(request)
-    if chat_id and update_subscriber_status(chat_id, 'FORM SENT', 'active'):
+    if chat_id :
+        update_subscriber_status(chat_id, 'FORM SENT', 'active')
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
 @csrf_exempt
 @require_POST
 def active_giveaway(request):
-    print('NEWWWWW -active_giveaway',request)
+    print('giveaway',request)
     chat_id = extract_chat_id(request)
-    if chat_id and update_subscriber_status(chat_id, 'FORM SENT', 'active'):
+    if chat_id :
+        lead_status = 'active'
+        whatsappstatus ='FORM SENT'
+        Thread(target=sheet_update_or_append, args=(request,chat_id, lead_status,whatsappstatus,"GiveAway")).start()
+
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
 @csrf_exempt
 @require_POST
 def whatsaap_reg_inbound(request):
-    print('NEWWWWW whatsaap_reg_inbound',request)
+    print('whatsaap_reg_inbound',request)
     chat_id = extract_chat_id(request)
-    if chat_id and update_subscriber_status(chat_id, 'FORM SENT', 'active'):
+    if chat_id :
+        lead_status = 'active'
+        whatsappstatus ='FORM SENT'
+        Thread(target=sheet_update_or_append, args=(request,chat_id, lead_status,whatsappstatus,"WhatsApp inbound")).start()
+
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
 @csrf_exempt
 @require_POST
 def active_know_more(request):
-    print('NEWWWWW active_know_more',request)
+    print('active_know_more',request)
     chat_id = extract_chat_id(request)
     if chat_id :
-        Thread(target=update_subscriber_status, args=(chat_id, 'OPEN', 'open')).start()
+        update_subscriber_status(chat_id, 'OPEN', 'open')
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
 @csrf_exempt
 @require_POST
 def chat_with_human(request):
-    print('NEWWWWW chat_with_human',request)
+    print(' chat_with_human',request)
     chat_id = extract_chat_id(request)
-    if chat_id and update_subscriber_status(chat_id, 'CHAT WITH HUMAN', 'open'):
+    if chat_id :
+        update_subscriber_status(chat_id, 'CHAT WITH HUMAN', 'open')
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
 
 @csrf_exempt
 @require_POST
+
+def whatsaapnew_chat (request):
+    print(' chat_with_human',request)
+    chat_id = extract_chat_id(request)
+    if chat_id :
+        Thread(target=newchatfunct, args=(request,chat_id)).start()
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
+
+
+@csrf_exempt
+@require_POST
+
+
+
 def get_image_url(request):
     try:
         chat_id = extract_chat_id(request)

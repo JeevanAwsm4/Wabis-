@@ -15,7 +15,7 @@ urlpatterns = [
     path('giveaway-inbound/', views.active_giveaway, name='active_giveaway'),
     path('know-more/', views.active_know_more, name='active_know_more'),
 
-    path('find_value/', views.find_value_in_sheet, name='find_value'),
+    path('whatsaapnew-chat/', views.whatsaapnew_chat, name='whatsaapnew_chat'),
 
 
     path('image-url/',views.get_image_url, name='get_image_url'),
