@@ -178,7 +178,6 @@ def sync_subscribers(request):
 
 @csrf_exempt
 @require_POST
-
 def regproxess(request):
             openlead_status = 'registered'
             whatsappstatus ='REGISTERED'
@@ -232,7 +231,8 @@ def regproxess(request):
 
             print("[STEP 14] All operations completed successfully.")
 
-
+@csrf_exempt
+@require_POST
 def registration_completed(request):
     print("[STEP 1] Incoming request...")
 
