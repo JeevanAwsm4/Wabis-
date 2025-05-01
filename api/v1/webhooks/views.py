@@ -52,10 +52,10 @@ def sheet_update_or_append(request,cid,leadstatus,whatsappstatus,source=None):
     body = json.loads(request.body) 
     cell = data_main.find(cid, in_column=2)
     if cell != None :
-        data_main.update_cell(cell.row, 6, leadstatus)
-        data_main.update_cell(cell.row, 6, whatsappstatus)
+        data_main.update_cell(cell.row, 7, leadstatus)
+        data_main.update_cell(cell.row, 8, whatsappstatus)
         if source != None :
-            data_main.update_cell(cell.row, 4, source)
+            data_main.update_cell(cell.row, 5, source)
     else:
         data_main.append_row( ['----',cid,body.get('first_name'),'',source,'',leadstatus,whatsappstatus])
 
@@ -180,6 +180,10 @@ def sync_subscribers(request):
 @require_POST
 
 def regproxess(request):
+            openlead_status = 'registered'
+            whatsappstatus ='REGISTERED'
+            Thread(target=sheet_update_or_append, args=(request,chat_id, lead_status,whatsappstatus)).start()
+
             body = json.loads(request.body)
             print("[STEP 2] Request body parsed:", body)
 
@@ -207,31 +211,26 @@ def regproxess(request):
                 subscriber.save()
                 print(f"[STEP 6] Unique code saved: {subscriber.unique_code}")
 
-            updated = update_subscriber_status(chat_id, 'REGESTERED', 'registered')
-            print(f"[STEP 7] Subscriber status update result: {updated}")
+            
 
-            if updated:
-                send_to_google_sheet(subscriber)
-                print("[STEP 8] Sent to Google Sheet")
+            
+            webhook_url = "https://bot.wabis.in/webhook/whatsapp-workflow/136743.143544.173675.1746126129"
+            payload = {
+                "studentNameWbh": name,
+                "studentRegId": subscriber.unique_code,
+                "studentEmailWbh": email,
+                "studentPhoneWbh": phone,
+                "chat_id": chat_id
+            }
 
-               
-                webhook_url = "https://bot.wabis.in/webhook/whatsapp-workflow/136743.143544.173675.1746126129"
-                payload = {
-                    "studentNameWbh": name,
-                    "studentRegId": subscriber.unique_code,
-                    "studentEmailWbh": email,
-                    "studentPhoneWbh": phone,
-                    "chat_id": chat_id
-                }
+            print(f"[STEP 12] Sending payload to Wabis: {payload}")
+            try:
+                response = requests.post(webhook_url, json=payload, timeout=5)
+                print(f"[STEP 13] Wabis webhook response: {response.status_code}, {response.text}")
+            except Exception as e:
+                print(f"[ERROR] Failed to send to Wabis webhook: {e}")
 
-                print(f"[STEP 12] Sending payload to Wabis: {payload}")
-                try:
-                    response = requests.post(webhook_url, json=payload, timeout=5)
-                    print(f"[STEP 13] Wabis webhook response: {response.status_code}, {response.text}")
-                except Exception as e:
-                    print(f"[ERROR] Failed to send to Wabis webhook: {e}")
-
-                print("[STEP 14] All operations completed successfully.")
+            print("[STEP 14] All operations completed successfully.")
 
 
 def registration_completed(request):
@@ -259,7 +258,11 @@ def form_sent(request):
     print('form sent ',request)
     chat_id = extract_chat_id(request)
     if chat_id :
-        update_subscriber_status(chat_id, 'FORM SENT', 'active')
+        # update_subscriber_status(chat_id, 'FORM SENT', 'active')
+        lead_status = 'active'
+        whatsappstatus ='FORM SENT'
+        Thread(target=sheet_update_or_append, args=(request,chat_id, lead_status,whatsappstatus)).start()
+
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
@@ -295,7 +298,11 @@ def active_know_more(request):
     print('active_know_more',request)
     chat_id = extract_chat_id(request)
     if chat_id :
-        update_subscriber_status(chat_id, 'OPEN', 'open')
+        # update_subscriber_status(chat_id, 'OPEN', 'open')
+        lead_status = 'open'
+        whatsappstatus ='OPEN'
+        Thread(target=sheet_update_or_append, args=(request,chat_id, lead_status,whatsappstatus)).start()
+
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
@@ -305,7 +312,11 @@ def chat_with_human(request):
     print(' chat_with_human',request)
     chat_id = extract_chat_id(request)
     if chat_id :
-        update_subscriber_status(chat_id, 'CHAT WITH HUMAN', 'open')
+        # update_subscriber_status(chat_id, '', 'open')
+        lead_status = 'open'
+        whatsappstatus ='CHAT WITH HUMAN'
+        Thread(target=sheet_update_or_append, args=(request,chat_id, lead_status,whatsappstatus)).start()
+
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
