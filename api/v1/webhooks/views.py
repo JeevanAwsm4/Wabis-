@@ -3,6 +3,7 @@ import requests
 import json
 import random
 import string
+from threading import Thread
 
 from more_itertools import chunked
 from urllib.parse import quote
@@ -389,7 +390,8 @@ def whatsaap_reg_inbound(request):
 def active_know_more(request):
     print('NEWWWWW active_know_more',request)
     chat_id = extract_chat_id(request)
-    if chat_id and update_subscriber_status(chat_id, 'OPEN', 'open'):
+    if chat_id :
+        Thread(target=update_subscriber_status, args=(chat_id, 'OPEN', 'open')).start()
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'error': 'Subscriber not found or invalid payload'}, status=404)
 
