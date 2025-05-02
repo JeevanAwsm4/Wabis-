@@ -212,13 +212,13 @@ def regproxess(request):
 
             lead_status = 'registered'
             whatsappstatus ='REGISTERED'
-            cell = data_main.find(cid, in_column=2)
+            cell = data_main.find(chat_id, in_column=2)
             if cell != None :
                 data_main.update_cell(cell.row, 7, leadstatus)
                 data_main.update_cell(cell.row, 8, whatsappstatus)
                 data_main.update_cell(cell.row, 12, subscriber.unique_code)
             else:
-                data_main.append_row( ['----',cid,body.get('first_name'),'',source,'',leadstatus,whatsappstatus,"","","",subscriber.unique_code])
+                data_main.append_row( ['----',chat_id,body.get('first_name'),'',source,'',leadstatus,whatsappstatus,"","","",subscriber.unique_code])
 
             webhook_url = "https://bot.wabis.in/webhook/whatsapp-workflow/136743.143544.173675.1746126129"
             payload = {
