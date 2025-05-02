@@ -237,7 +237,7 @@ def registration_completed(request):
     print("[STEP 1] Incoming request...")
 
     try:
-        Thread(target=regproxess, args=(request)).start()
+        Thread(target=regproxess, args=(request,)).start()
 
         return JsonResponse({'success': True})
 
