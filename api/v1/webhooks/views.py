@@ -214,7 +214,7 @@ def regproxess(request):
             whatsappstatus ='REGISTERED'
             cell = data_main.find(chat_id, in_column=2)
             if cell != None :
-                data_main.update_cell(cell.row, 7, leadstatus)
+                data_main.update_cell(cell.row, 7, lead_status)
                 data_main.update_cell(cell.row, 8, whatsappstatus)
                 data_main.update_cell(cell.row, 12, subscriber.unique_code)
             else:
