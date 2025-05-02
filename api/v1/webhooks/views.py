@@ -195,7 +195,7 @@ def regproxess(request):
                 print("[ERROR] chat_id missing")
                 return JsonResponse({'success': False, 'error': 'Invalid chat_id'}, status=400)
 
-                       try:
+            try:
                 subscriber = Subscriber.objects.get(chat_id=chat_id)
                 print(f"[STEP 4] Subscriber found: {subscriber}")
             except Subscriber.DoesNotExist:
