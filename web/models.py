@@ -17,3 +17,7 @@ class Subscriber(models.Model):
 
     def __str__(self):
         return f"{self.first_name} ({self.chat_id})"
+
+class SerialTracker(models.Model):
+    prefix = models.CharField(max_length=2, default='AA')
+    last_number = models.IntegerField(default=0)

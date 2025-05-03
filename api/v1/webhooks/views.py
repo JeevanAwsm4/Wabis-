@@ -4,6 +4,8 @@ import json
 import random
 import string
 from threading import Thread
+import base64
+from web.models import SerialTracker
 
 from more_itertools import chunked
 from urllib.parse import quote
@@ -17,16 +19,39 @@ import gspread
 from django.http import JsonResponse
 from django.conf import settings
 from web.models import Subscriber
+from django.http import HttpResponse
+from dotenv import load_dotenv
+from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import AuthorizedSession
 
-GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtYXbNuoObFhvVJzcKdQhdjVgzPFuJwmNhfrkpZz-I7_iZ2knKCNiKcT_bTkcrECI/exec' 
-API_TOKEN = '10337|avjhUOcfqEAodgsXI0ZoxWC3DJMZ0Pnk1oDLcdWIbe6a7d3e'
-PHONE_NUMBER_ID = '646606975197281'
 
-BATCH_SIZE = 1000  
+load_dotenv()
+GOOGLE_SCRIPT_URL = os.getenv('GOOGLE_SCRIPT_URL')
+API_TOKEN = os.getenv('API_TOKEN')
+PHONE_NUMBER_ID = os.getenv('PHONE_NUMBER_ID')
+# print(API_TOKEN)
 
-CRED_PATH = "/etc/secrets/cred.json"  
+BATCH_SIZE = 1000 
 
-gc = gspread.service_account(filename=CRED_PATH)
+
+b64 = os.getenv("SERVICE_CREDS_B64")
+creds_dict = json.loads(base64.b64decode(b64))
+# print(creds_dict)
+
+
+scopes = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
+]
+
+# Create Credentials object
+creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+
+# Authorize a gspread client with these credentials
+gc = gspread.Client(auth=creds)
+gc.session = AuthorizedSession(creds)  # ensure HTTP client is set
+
+
 sh = gc.open("Fusfu - CQO 2025 Lead management MAIN")
 data_main = sh.get_worksheet(0) 
 
@@ -67,12 +92,15 @@ def newchatfunct(request,cid,):
         data_main.append_row( ['----',cid,body.get('first_name'),'','WhatsApp New','','New','NOT MESSAGED'])
 
 
+
 def generate_unique_code():
-    letters = ''.join(random.choices(string.ascii_uppercase, k=2))
-    numbers = ''.join(random.choices(string.digits, k=4))
-    return f'#{letters}{numbers}'
+    with transaction.atomic():
+        tracker, created = SerialTracker.objects.select_for_update().get_or_create(pk=1)
+        
+        tracker.last_number += 1
+        tracker.save()
 
-
+        return f"#{tracker.prefix}{tracker.last_number:04d}"  # E.g., #AA0001
 def generate_and_send_image(name, reg_id, phone, email, output_path=None):
     if output_path is None:
         output_path = f'assets/user/output_{reg_id}.jpg'
@@ -174,6 +202,17 @@ def sync_subscribers(request):
         'count': synced,
         'subscribers': subscribers_list  
     })
+
+@csrf_exempt
+def welcome_view(request):
+    return HttpResponse("<h1>Welcome to fpwebhook site</h1>")
+
+
+@csrf_exempt
+def testuniwuenumb(request):
+    uq = generate_unique_code()
+
+    return JsonResponse({'uq': uq})
 
 
 @csrf_exempt

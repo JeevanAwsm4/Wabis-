@@ -89,3 +89,8 @@
 #         traceback.print_exc()
 #         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
+# def generate_unique_code():
+#     letters = ''.join(random.choices(string.ascii_uppercase, k=2))
+#     numbers = ''.join(random.choices(string.digits, k=4))
+#     return f'#{letters}{numbers}'
